@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Double Pendulum</title>
+  <meta charset="utf-8">
+  <style>
+    canvas {
+      display: block;
+      width: 512px;
+      height: 512px;
+    }
+  </style>
+</head>
+<body bgcolor="#000000">
+  <canvas id="canvas"></canvas>
+
+  <script type="text/javascript">
+    const canvas = document.getElementById('canvas');
+    const gl = canvas.getContext('webgl');
+
+    const vertexShaderSource = `
+      attribute vec2 position;
+      void main() {
+        gl_Position = vec4(position, 0, 1);
+      }
+    `;
+
+    const fragmentShaderSource = `
+      precision mediump float;
+      void main() {
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      }
+    `;
+
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, vertexShaderSource);
+    gl.compileShader(vertexShader);
+
+    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader, fragmentShaderSource);
+    gl.compileShader(fragmentShader);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    const positionAttributeLocation = gl.getAttribLocation(program, "position");
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    const positions = [
+      -1, -1,
+      -1, 1,
+      1, -1,
+      1, 1,
+    ];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    gl.useProgram(program);
+    gl.enableVertexAttribArray(positionAttributeLocation);
+    gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const g = 9.81; // gravity
+    const L1 = 0.1; // length of pendulum 1
+    const L2 = 0.1; // length of pendulum 2
+    const m1 = 10;  // mass of pendulum 1
+    const m2 = 10;  // mass of pendulum 2
+    const speed = 0.1;  // speed
+    let t = 0;      // current time
+    let theta1 = Math.PI / 2; // initial angle of pendulum 1
+    let theta2 = Math.PI / 2; // initial angle of pendulum 2
+    let omega1 = 0;  // initial angular velocity of pendulum 1
+    let omega2 = 0;  // initial angular velocity of pendulum 2
+
+    function now() { return Date.now() / 1000.0; }
+
+    let lastTime = now();
+
+    document.addEventListener('keydown', event => {
+      if (event.code === 'ArrowLeft') {
+        omega1 -= 1.0;
+        console.log(omega1);
+      }
+      if (event.code === 'ArrowRight') {
+        omega1 += 1.0;
+        console.log(omega1);
+      }
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      let curTime = now();
+      let dt = curTime - lastTime;
+      lastTime = curTime;
+
+      // calculate the angular acceleration of the two pendulums
+      const num1 = -g * (2 * m1 + m2) * Math.sin(theta1);
+      const num2 = -m2 * g * Math.sin(theta1 - 2 * theta2);
+      const num3 = -2 * Math.sin(theta1 - theta2) * m2;
+      const num4 = omega2 * omega2 * L2 + omega1 * omega1 * L1 * Math.cos(theta1 - theta2);
+      const den = L1 * (2 * m1 + m2 - m2 * Math.cos(2 * theta1 - 2 * theta2));
+      const alpha1 = (num1 + num2 + num3 * num4) / den;
+
+      const num5 = 2 * Math.sin(theta1 - theta2);
+      const num6 = omega1 * omega1 * L1 * (m1 + m2);
+      const num7 = g * (m1 + m2) * Math.cos(theta1);
+      const num8 = omega2 * omega2 * L2 * m2 * Math.cos(theta1 - theta2);
+      const den2 = L2 * (2 * m1 + m2 - m2 * Math.cos(2 * theta1 - 2 * theta2));
+      const alpha2 = (num5 * (num6 + num7 + num8)) / den2;
+
+      // update the angular velocity and angle of the two pendulums
+      omega1 += alpha1 * dt * speed;
+      omega2 += alpha2 * dt * speed;
+      theta1 += omega1 * dt * speed;
+      theta2 += omega2 * dt * speed;
+
+      //theta1 += dt;
+      //omega1 -= dt * 1;
+
+      // convert polar coordinates to cartesian coordinates
+      const x1 = 1.0 * (L1 * Math.sin(theta1));
+      const y1 = 1.0 * (-L1 * Math.cos(theta1));
+      const x2 = 1.0 * (x1 + L2 * Math.sin(theta2));
+      const y2 = 1.0 * (y1 - L2 * Math.cos(theta2));
+
+      // update the positions of the two pendulums
+      const positions = [    0, 0,    x1, y1,    x2, y2,  ];
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+      // render the pendulums
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.LINE_STRIP, 0, 3);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
